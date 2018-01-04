@@ -134,7 +134,7 @@ func (c *WatchCmd) Execute(args []string) error {
 			log.Fatalln(err)
 		}
 	}
-	dataFilePath := dataDir + t.Format("/02_15.json")
+	dataFilePath := dataDir + t.Format("/02.json")
 
 	outFilePath := workDir + "/uv.html"
 
