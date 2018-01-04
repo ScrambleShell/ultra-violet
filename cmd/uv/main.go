@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/aimof/ultraViolet"
+	"github.com/aimof/ultra-violet"
 	"github.com/jessevdk/go-flags"
 )
 

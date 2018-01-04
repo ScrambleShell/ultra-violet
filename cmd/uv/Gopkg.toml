@@ -20,7 +20,7 @@
 #  version = "2.4.0"
 
 
-ignored = [ "github.com/aimof/ultraViolet" ]
+ignored = [ "github.com/aimof/ultra-violet" ]
 
 [[constraint]]
   name = "github.com/jessevdk/go-flags"
