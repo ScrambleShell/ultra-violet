@@ -1,7 +1,8 @@
-package thyme
+package ultraViolet
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -13,19 +14,21 @@ import (
 var trackers = make(map[string]func() Tracker)
 
 // RegisterTracker makes a Tracker constructor available to clients of this package.
-func RegisterTracker(name string, t func() Tracker) {
+func RegisterTracker(name string, t func() Tracker) error {
 	if _, exists := trackers[name]; exists {
-		log.Fatalf("a tracker already exists with the name %s", name)
+		return errors.New("a tracker already exists with the name" + name)
 	}
 	trackers[name] = t
+	return nil
 }
 
 // NewTracker returns a new Tracker instance whose type is `name`.
-func NewTracker(name string) Tracker {
+func NewTracker(name string) (Tracker, error) {
 	if _, exists := trackers[name]; !exists {
-		log.Fatalf("no Tracker constructor has been registered with name %s", name)
+		log.Println("error")
+		return nil, errors.New("no Tracker constructor has been registered with name " + name)
 	}
-	return trackers[name]()
+	return trackers[name](), nil
 }
 
 // Tracker tracks application usage. An implementation that satisfies
@@ -61,8 +64,8 @@ func (s Stream) Print() string {
 type Snapshot struct {
 	Time    time.Time
 	Windows []*Window
-	Active  int64
-	Visible []int64
+	Active  int
+	Visible []int
 }
 
 // Print returns a pretty-printed representation of the snapshot.
@@ -91,56 +94,33 @@ s_Windows:
 	if active != nil {
 		fmt.Fprintf(&b, "\tActive: %s\n", active.Info().Print())
 	}
-	if len(visible) > 0 {
-		fmt.Fprintf(&b, "\tVisible: ")
-		for _, v := range visible {
-			fmt.Fprintf(&b, "%s, ", v.Info().Print())
-		}
-		fmt.Fprintf(&b, "\n")
-	}
-	if len(other) > 0 {
-		fmt.Fprintf(&b, "\tOther: ")
-		for _, w := range other {
-			fmt.Fprintf(&b, "%s, ", w.Info().Print())
-		}
-		fmt.Fprintf(&b, "\n")
-	}
+	writeWindows(&b, visible, "Visible")
+	writeWindows(&b, other, "Other")
 	return string(b.Bytes())
+}
+
+func writeWindows(b *bytes.Buffer, windows []*Window, name string) {
+	if len(windows) > 0 {
+		fmt.Fprintf(b, "\t%s: ", name)
+		for _, w := range windows {
+			fmt.Fprintf(b, "%s, ", w.Info().Print())
+		}
+		fmt.Fprintf(b, "\n")
+	}
 }
 
 // Window represents an application window.
 type Window struct {
 	// ID is the numerical identifier of the window.
-	ID int64
+	ID int
 
 	// Desktop is the numerical identifier of the desktop the
 	// window belongs to.  Equal to -1 if the window is sticky.
-	Desktop int64
+	Desktop int
 
 	// Name is the display name of the window (typically what the
 	// windowing system shows in the top bar of the window).
 	Name string
-}
-
-// systemNames is a set of blacklisted window names that are known to
-// be used by system windows that aren't visible to the user.
-var systemNames = map[string]struct{}{
-	"XdndCollectionWindowImp": {},
-	"unity-launcher":          {},
-	"unity-panel":             {},
-	"unity-dash":              {},
-	"Hud":                     {},
-	"Desktop":                 {},
-}
-
-// IsSystem returns true if the window is a system window (like
-// "unity-panel" and thus shouldn't be considered an application
-// visible to the end-users)
-func (w *Window) IsSystem() bool {
-	if _, is := systemNames[w.Name]; is {
-		return true
-	}
-	return false
 }
 
 // IsSticky returns true if the window is a sticky window (i.e.
@@ -151,7 +131,7 @@ func (w *Window) IsSticky() bool {
 
 // IsOnDesktop returns true if the window is present on the specified
 // desktop
-func (w *Window) IsOnDesktop(desktop int64) bool {
+func (w *Window) IsOnDesktop(desktop int) bool {
 	return w.IsSticky() || w.Desktop == desktop
 }
 
@@ -169,46 +149,22 @@ const (
 //     3) The few programs that reverse this convention only reverse it.
 func (w *Window) Info() *Winfo {
 	// Special Cases
-	fields := strings.Split(w.Name, defaultWindowTitleSeparator)
-	if len(fields) > 1 {
-		last := strings.TrimSpace(fields[len(fields)-1])
-		if last == "Google Chrome" {
-			return &Winfo{
-				App:    "Google Chrome",
-				SubApp: strings.TrimSpace(fields[len(fields)-2]),
-				Title:  strings.Join(fields[0:len(fields)-2], defaultWindowTitleSeparator),
-			}
-		}
-	}
-
-	if strings.Contains(w.Name, microsoftEdgeWindowTitleSeparator) {
-		// App Name Last
-		beforeSep := strings.LastIndex(w.Name, microsoftEdgeWindowTitleSeparator)
-		afterSep := beforeSep + len(microsoftEdgeWindowTitleSeparator)
-		return &Winfo{
-			App:   strings.TrimSpace(w.Name[afterSep:]),
-			Title: strings.TrimSpace(w.Name[:beforeSep]),
-		}
+	wi, isChrome := chromeInfo(w.Name)
+	if isChrome {
+		return wi
 	}
 
 	// Normal Cases
-	if beforeSep := strings.Index(w.Name, defaultWindowTitleSeparator); beforeSep > -1 {
-		// App Name First
-		if w.Name[:beforeSep] == "Slack" {
-			afterSep := beforeSep + len(defaultWindowTitleSeparator)
-			return &Winfo{
-				App:   strings.TrimSpace(w.Name[:beforeSep]),
-				Title: strings.TrimSpace(w.Name[afterSep:]),
-			}
+	if beforeSep := strings.Index(w.Name, defaultWindowTitleSeparator); beforeSep > -1 && beforeSep < len(w.Name) {
+
+		// parameter of slackInfo() must be validated.
+		wi, isSlack := slackInfo(w.Name, beforeSep)
+		if isSlack {
+			return wi
 		}
 
-		// App Name Last
-		beforeSep := strings.LastIndex(w.Name, defaultWindowTitleSeparator)
-		afterSep := beforeSep + len(defaultWindowTitleSeparator)
-		return &Winfo{
-			App:   strings.TrimSpace(w.Name[afterSep:]),
-			Title: strings.TrimSpace(w.Name[:beforeSep]),
-		}
+		//parameter of sepDefault() must be validated.
+		return sepDefault(w.Name)
 	}
 
 	// No Application name separator
@@ -236,4 +192,42 @@ type Winfo struct {
 // Print returns a pretty-printed representation of the snapshot.
 func (w Winfo) Print() string {
 	return fmt.Sprintf("[%s|%s|%s]", w.App, w.SubApp, w.Title)
+}
+
+func chromeInfo(wName string) (wi *Winfo, isChrome bool) {
+	fields := strings.Split(wName, defaultWindowTitleSeparator)
+	if len(fields) > 1 {
+		last := strings.TrimSpace(fields[len(fields)-1])
+		if last == "Google Chrome" {
+			return &Winfo{
+				App:    "Google Chrome",
+				SubApp: strings.TrimSpace(fields[len(fields)-2]),
+				Title:  strings.Join(fields[0:len(fields)-2], defaultWindowTitleSeparator),
+			}, true
+		}
+	}
+	return nil, false
+}
+
+// beforeSep must be varidated.
+func slackInfo(wName string, beforeSep int) (wi *Winfo, isSlack bool) {
+	// App Name First
+	if wName[:beforeSep] == "Slack" {
+		afterSep := beforeSep + len(defaultWindowTitleSeparator)
+		return &Winfo{
+			App:   strings.TrimSpace(wName[:beforeSep]),
+			Title: strings.TrimSpace(wName[afterSep:]),
+		}, true
+	}
+	return nil, false
+}
+
+func sepDefault(wName string) (wi *Winfo) {
+	// App Name Last
+	beforeSep := strings.LastIndex(wName, defaultWindowTitleSeparator)
+	afterSep := beforeSep + len(defaultWindowTitleSeparator)
+	return &Winfo{
+		App:   strings.TrimSpace(wName[afterSep:]),
+		Title: strings.TrimSpace(wName[:beforeSep]),
+	}
 }

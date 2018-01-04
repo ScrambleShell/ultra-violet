@@ -1,10 +1,10 @@
-package thyme
+package ultraViolet
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"hash/fnv"
-	"log"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -40,7 +40,6 @@ const (
 tell application "System Events"
   set listOfProcesses to (every application process where background only is false)
 end tell
-
 repeat with proc in listOfProcesses
   set procName to (name of proc)
   set procID to (id of proc)
@@ -59,7 +58,6 @@ end repeat
 tell application "System Events"
      set proc to (first application process whose frontmost is true)
 end tell
-
 set procName to (name of proc)
 try
   tell application procName
@@ -92,79 +90,37 @@ end repeat
 )
 
 func (t *DarwinTracker) Deps() string {
-	return `
+	return `Citizens, are you Happy?
 You will need to enable privileges for "Terminal" in System Preferences > Security & Privacy > Privacy > Accessibility.
 See https://support.apple.com/en-us/HT202802 for details.
-
 Note: this command prints out this message regardless of whether this has been done or not.
 `
 }
 
 func (t *DarwinTracker) Snap() (*Snapshot, error) {
-	var allWindows []*Window
-	var allProcWins map[process][]*Window
-	{
-		procWins, err := runAS(allWindowsScript)
-		if err != nil {
-			return nil, err
-		}
-		for proc, wins := range procWins {
-			if len(wins) == 0 {
-				allWindows = append(allWindows, &Window{ID: proc.id, Name: proc.name})
-			} else {
-				allWindows = append(allWindows, wins...)
-			}
-		}
-		allProcWins = procWins
+	allProcWins, err := runAS(allWindowsScript)
+	if err != nil {
+		return nil, err
 	}
 
-	var active int64
-	{
-		procWins, err := runAS(activeWindowsScript)
-		if err != nil {
-			return nil, err
-		}
-		if len(procWins) > 1 {
-			return nil, fmt.Errorf("found more than one active process: %+v", procWins)
-		}
-		for proc, wins := range procWins {
-			if len(wins) == 0 {
-				active = proc.id
-			} else if len(wins) == 1 {
-				active = wins[0].ID
-			} else {
-				return nil, fmt.Errorf("found more than one active window: %+v", wins)
-			}
-		}
+	allWindows := _snapAll(allProcWins)
+
+	procWinsActive, err := runAS(activeWindowsScript)
+	if err != nil {
+		return nil, err
 	}
 
-	var visible []int64
-	{
-		procWins, err := runAS(visibleWindowsScript)
-		if err != nil {
-			return nil, err
-		}
-		for proc, wins := range procWins {
-			allWins := allProcWins[proc]
-			for _, visWin := range wins {
-				if len(allWins) == 0 {
-					visible = append(visible, proc.id)
-				} else {
-					found := false
-					for _, win := range allWins {
-						if win.Name == visWin.Name {
-							visible = append(visible, win.ID)
-							found = true
-							break
-						}
-					}
-					if !found {
-						log.Printf("warning: window ID not found for visible window %q", visWin.Name)
-					}
-				}
-			}
-		}
+	active, err := _snapActive(procWinsActive)
+	if err != nil {
+		return nil, err
 	}
+
+	procWinsVisible, err := runAS(visibleWindowsScript)
+	if err != nil {
+		return nil, err
+	}
+
+	visible := _snapVisible(allProcWins, procWinsVisible)
 
 	return &Snapshot{
 		Time:    time.Now(),
@@ -174,10 +130,67 @@ func (t *DarwinTracker) Snap() (*Snapshot, error) {
 	}, nil
 }
 
+func _snapAll(allProcWins map[process][]*Window) []*Window {
+	// Todo: cap
+	var allWindows = make([]*Window, 0, len(allProcWins)*2)
+	for proc, wins := range allProcWins {
+		if len(wins) == 0 {
+			allWindows = append(allWindows, &Window{ID: proc.id, Name: proc.name})
+		} else {
+			allWindows = append(allWindows, wins...)
+		}
+	}
+	return allWindows
+}
+
+// if len(procWins) == 0, _snapActive() returns 0, nil.
+func _snapActive(procWins map[process][]*Window) (int, error) {
+	var active int
+	if len(procWins) > 1 {
+		return 0, fmt.Errorf("found more than one active process: %+v", procWins)
+	}
+	for proc, wins := range procWins {
+		if len(wins) == 0 {
+			active = proc.id
+		} else if len(wins) == 1 {
+			active = wins[0].ID
+		} else {
+			return 0, fmt.Errorf("found more than one active window: %+v", wins)
+		}
+	}
+	return active, nil
+}
+
+func _snapVisible(allProcWins map[process][]*Window, procWins map[process][]*Window) []int {
+	visible := make([]int, 0, len(procWins))
+	for proc, wins := range procWins {
+		allWins := allProcWins[proc]
+		for _, visWin := range wins {
+			if len(allWins) == 0 {
+				visible = append(visible, proc.id)
+			} else {
+				found := false
+				for _, win := range allWins {
+					if win.Name == visWin.Name {
+						visible = append(visible, win.ID)
+						found = true
+						break
+					}
+				}
+				if !found {
+					// ToDo: What should we do?
+					// fmt.Errorf("warning: window ID not found for visible window %q", visWin.Name)
+				}
+			}
+		}
+	}
+	return visible
+}
+
 // process is the {name, id} of a process
 type process struct {
 	name string
-	id   int64
+	id   int
 }
 
 // runAS runs script as AppleScript and parses the output into a map of
@@ -199,18 +212,24 @@ func parseASOutput(out string) (map[process][]*Window, error) {
 	for _, line := range strings.Split(out, "\n") {
 		if strings.HasPrefix(line, "PROCESS ") {
 			c := strings.Index(line, ":")
+			if c == -1 || c >= len(line)-1 {
+				return nil, errors.New("parseASOutput(): ':' is wrong")
+			}
 			procID, err := strconv.ParseInt(line[len("PROCESS "):c], 10, 0)
 			if err != nil {
 				return nil, err
 			}
-			proc = process{line[c+1:], procID}
+			proc = process{line[c+1:], int(procID)}
 			procWins[proc] = nil
 		} else if strings.HasPrefix(line, "WINDOW ") {
-			win, winID := parseWindowLine(line, proc.id)
+			win, winID := parseWindowLine(line, int(proc.id))
 			procWins[proc] = append(procWins[proc],
 				&Window{ID: winID, Name: fmt.Sprintf("%s - %s", win, proc.name)},
 			)
 		}
+	}
+	if len(procWins) == 0 {
+		return nil, errors.New("procASOutput(): ASOutput don't have PROCESS nor WINDOW line.")
 	}
 	return procWins, nil
 }
@@ -221,15 +240,18 @@ func parseASOutput(out string) (map[process][]*Window, error) {
 // windows controlled by the same process both have IDs missing and
 // have the same title, they will hash to the same ID. This is
 // unfortunate but seems to be the best behavior.
-func parseWindowLine(line string, procId int64) (string, int64) {
+// line must contain ":".
+// This function's parameters must be validated.
+func parseWindowLine(line string, procId int) (string, int) {
 	c := strings.Index(line, ":")
 	win := line[c+1:]
-	winID, err := strconv.ParseInt(line[len("WINDOW "):c], 10, 0)
+	winID64, err := strconv.ParseInt(line[len("WINDOW "):c], 10, 0)
 	if err != nil {
 		// sometimes "missing value" appears here, so generate a value
 		// taking the process ID and the window index to generate a hash
-		winID = hash(fmt.Sprintf("%s%v", win, procId))
+		winID64 = hash(fmt.Sprintf("%s%v", win, procId))
 	}
+	winID := int(winID64)
 	return win, winID
 }
 

@@ -1,2 +1,5 @@
 *~
 .bin
+cmd/uv/vendor/*
+cmd/uv/Gopkg.lock
+cmd/uv/uv

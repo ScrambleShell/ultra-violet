@@ -1,8 +1,8 @@
-package thyme
+package ultraViolet
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"sort"
 	"strconv"
 	"text/template"
@@ -16,12 +16,12 @@ const maxNumberOfBars = 30
 // 1. A timeline of applications active, visible, and open
 // 2. A timeline of windows active, visible, and open
 // 3. A barchart of applications most often active, visible, and open
-func Stats(stream *Stream) error {
+func Stats(stream *Stream, w io.Writer) error {
 	tlFine := NewTimeline(stream, func(w *Window) string { return w.Name })
 	tlCoarse := NewTimeline(stream, appID)
 	agg := NewAggTime(stream, appID)
 
-	if err := statsTmpl.Execute(os.Stdout, &statsPage{
+	if err := statsTmpl.Execute(w, &statsPage{
 		Fine:   tlFine,
 		Coarse: tlCoarse,
 		Agg:    agg,
@@ -43,7 +43,7 @@ func NewAggTime(stream *Stream, labelFunc func(*Window) string) *AggTime {
 	visible := NewBarChart("Visible", "App", "Samples", "Top "+n+" visible applications by time (multiplied by window count)")
 	all := NewBarChart("All", "App", "Samples", "Top "+n+" open applications by time (multiplied by window count)")
 	for _, snap := range stream.Snapshots {
-		windows := make(map[int64]*Window)
+		windows := make(map[int]*Window)
 		for _, win := range snap.Windows {
 			windows[win.ID] = win
 		}
@@ -142,7 +142,7 @@ func NewTimeline(stream *Stream, labelFunc func(*Window) string) *Timeline {
 	var lastActive *Range
 	var lastVisible, lastOther = make(map[string]*Range), make(map[string]*Range)
 	for _, snap := range stream.Snapshots {
-		windows := make(map[int64]*Window)
+		windows := make(map[int]*Window)
 		for _, win := range snap.Windows {
 			windows[win.ID] = win
 		}
