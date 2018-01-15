@@ -113,38 +113,38 @@ func TestSnapshotPrint(t *testing.T) {
 }
 
 func TestWriteWindows(t *testing.T) {
-	windows0 := []*Window{
-		&Window{ID: 0, Desktop: 0, Name: "title0 - app0"},
-		&Window{ID: 1, Desktop: 1, Name: "title1 - app1"},
-		&Window{ID: 10, Desktop: 10, Name: "title10 - app10"},
-		&Window{ID: 11, Desktop: 11, Name: "title11 - app11"},
+	tests := []struct {
+		windows  []*Window
+		name     string
+		expected string
+	}{
+		{
+			nil,
+			"",
+			"",
+		},
+		{
+			make([]*Window, 0),
+			"",
+			"",
+		},
+		{
+			[]*Window{&Window{ID: 0, Desktop: 0, Name: "title0 - app0"},
+				&Window{ID: 1, Desktop: 1, Name: "title1 - app1"},
+				&Window{ID: 10, Desktop: 10, Name: "title10 - app10"},
+				&Window{ID: 11, Desktop: 11, Name: "title11 - app11"},
+			},
+			"case",
+			"\tcase: [app0||title0], [app1||title1], [app10||title10], [app11||title11], \n",
+		},
 	}
 
-	casesWindows := make([][]*Window, 3)
-
-	casesWindows[0] = nil
-	casesWindows[1] = make([]*Window, 0)
-	casesWindows[2] = windows0
-
-	casesName := []string{
-		"",
-		"",
-		"case",
-	}
-
-	expectedStrings := []string{
-		"",
-		"",
-		"\tcase: [app0||title0], [app1||title1], [app10||title10], [app11||title11], \n",
-	}
-
-	for i, w := range casesWindows {
+	for i, tt := range tests {
 		var b bytes.Buffer
-		writeWindows(&b, w, casesName[i])
-		var actualString string = ""
-		actualString = string(b.Bytes())
-		if actualString != expectedStrings[i] {
-			t.Errorf("case%d: %s", i, actualString)
+		writeWindows(&b, tt.windows, tt.name)
+		actual := string(b.Bytes())
+		if actual != tt.expected {
+			t.Errorf("case%d:\nexpected:\n%s\nactual:\n%s\n", i, tt.expected, actual)
 		}
 	}
 }
