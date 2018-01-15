@@ -18,62 +18,96 @@ func TestStreamPrint(t *testing.T) {
 		Active:  0,
 		Visible: []int{0},
 	}
-
-	st := Stream{
-		Snapshots: []*Snapshot{
-			&s0,
-			&s0,
-			&s0,
+	tests := []struct {
+		st       Stream
+		expected string
+	}{
+		{
+			Stream{
+				Snapshots: []*Snapshot{
+					&s0,
+					&s0,
+					&s0,
+				},
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\nSun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\nSun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
 		},
 	}
-	expected := "Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\nSun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\nSun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n"
-	actual := st.Print()
-
-	if actual != expected {
-		t.Error(actual)
+	for i, tt := range tests {
+		if tt.st.Print() != tt.expected {
+			t.Errorf("case%d\nexpected:\n`%v`\nactual:\n`%v`", i, tt.expected, tt.st.Print())
+		}
 	}
+
 }
 
 func TestSnapshotPrint(t *testing.T) {
-	s0 := Snapshot{
-		Time: time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
-		Windows: []*Window{
-			&Window{ID: 0, Desktop: 0, Name: "foo - bar"},
+	tests := []struct {
+		ss       Snapshot
+		expected string
+	}{
+		{
+			Snapshot{
+				Time:    time.Time{},
+				Windows: nil,
+				Active:  0,
+				Visible: []int{0},
+			},
+			"Mon Jan 1 00:00:00 +0000 UTC 0001\n",
 		},
-		Active:  0,
-		Visible: []int{0},
+
+		{
+			Snapshot{
+				Time: time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
+				Windows: []*Window{
+					&Window{ID: 0, Desktop: 0, Name: "foo - bar"},
+				},
+				Active:  0,
+				Visible: []int{0},
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
+		},
+		{
+			Snapshot{
+				Time:    time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
+				Windows: nil,
+				Active:  0,
+				Visible: []int{0},
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n",
+		},
+		{
+
+			Snapshot{
+				Time: time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
+				Windows: []*Window{
+					&Window{ID: 0, Desktop: 0, Name: "foo - bar"},
+				},
+				Active:  0,
+				Visible: nil,
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
+		},
+		{
+			Snapshot{
+				Time: time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
+				Windows: []*Window{
+					&Window{ID: -1, Desktop: -1, Name: "a-1 - b-1 - c-1"},
+					&Window{ID: 0, Desktop: 0, Name: "a0 - b0 - c0"},
+					&Window{ID: 1, Desktop: 0, Name: "a1 - b1 - c1"},
+					&Window{ID: 10, Desktop: 1, Name: "a10 - b10 - c10"},
+				},
+				Active:  0,
+				Visible: []int{0},
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [c0||a0 - b0]\n\tOther: [c-1||a-1 - b-1], [c1||a1 - b1], [c10||a10 - b10], \n",
+		},
 	}
 
-	casesSnapshot := make([]Snapshot, 5)
-
-	casesSnapshot[1] = s0
-
-	casesSnapshot[2] = s0
-	casesSnapshot[2].Windows = nil
-
-	casesSnapshot[3] = s0
-	casesSnapshot[3].Visible = nil
-
-	casesSnapshot[4] = s0
-	casesSnapshot[4].Windows = []*Window{
-		&Window{ID: -1, Desktop: -1, Name: "a-1 - b-1 - c-1"},
-		&Window{ID: 0, Desktop: 0, Name: "a0 - b0 - c0"},
-		&Window{ID: 1, Desktop: 0, Name: "a1 - b1 - c1"},
-		&Window{ID: 10, Desktop: 1, Name: "a10 - b10 - c10"},
-	}
-
-	expectedString := []string{
-		"Mon Jan 1 00:00:00 +0000 UTC 0001\n",
-		"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
-		"Sun Dec 31 15:00:00 +0000 UTC 2017\n",
-		"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
-		"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [c0||a0 - b0]\n\tOther: [c-1||a-1 - b-1], [c1||a1 - b1], [c10||a10 - b10], \n",
-	}
-
-	for i, s := range casesSnapshot {
-		actualString := s.Print()
-		if actualString != expectedString[i] {
-			t.Errorf("case%d, %s", i, actualString)
+	for i, tt := range tests {
+		actual := tt.ss.Print()
+		if actual != tt.expected {
+			t.Errorf("case%d\nexpected:\n%s\nactual:\n%s", i, tt.expected, actual)
 		}
 	}
 }
