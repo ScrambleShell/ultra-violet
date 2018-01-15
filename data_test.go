@@ -149,28 +149,35 @@ func TestWriteWindows(t *testing.T) {
 	}
 }
 
-var testWindows = []*Window{
-	{ID: 0, Desktop: 0, Name: ""},
-	{ID: 1, Desktop: 1, Name: "Desktop"},
-	{ID: -1, Desktop: -1, Name: "Google"},
-}
-
-var expectedIsSticky = []bool{false, false, true}
-
 func TestWindowIsSticky(t *testing.T) {
-	for i, w := range testWindows {
-		if w.IsSticky() != expectedIsSticky[i] {
-			t.Errorf("%d", i)
+	tests := []struct {
+		window   *Window
+		isSticky bool
+	}{
+		{&Window{ID: 0, Desktop: 0, Name: ""}, false},
+		{&Window{ID: 1, Desktop: 1, Name: "Desktop"}, false},
+		{&Window{ID: -1, Desktop: -1, Name: "Google"}, true},
+	}
+
+	for i, tt := range tests {
+		if tt.window.IsSticky() != tt.isSticky {
+			t.Errorf("case%d", i)
 		}
 	}
 }
 
-var expectedIsOnDesktop = []bool{true, false, true}
-
 func TestWindowIsOnDesktop(t *testing.T) {
-	for i, w := range testWindows {
-		if w.IsOnDesktop(0) != expectedIsOnDesktop[i] {
-			t.Errorf("%d", i)
+	tests := []struct {
+		window    *Window
+		onDesktop bool
+	}{
+		{&Window{ID: 0, Desktop: 0, Name: ""}, true},
+		{&Window{ID: 1, Desktop: 1, Name: "Desktop"}, false},
+		{&Window{ID: -1, Desktop: -1, Name: "Google"}, true},
+	}
+	for i, tt := range tests {
+		if tt.window.IsOnDesktop(0) != tt.onDesktop {
+			t.Errorf("case:%d", i)
 		}
 	}
 }
@@ -277,8 +284,12 @@ var testSt = Stream{
 			Visible: nil,
 		},
 		&Snapshot{
-			Time:    time.Now(),
-			Windows: testWindows,
+			Time: time.Now(),
+			Windows: []*Window{
+				&Window{ID: 0, Desktop: 0, Name: ""},
+				&Window{ID: 1, Desktop: 1, Name: "Desktop"},
+				&Window{ID: -1, Desktop: -1, Name: "Google"},
+			},
 			Active:  -1,
 			Visible: []int{-1, 0, 1},
 		},
