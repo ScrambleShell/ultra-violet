@@ -205,45 +205,102 @@ func (_ testTracker2) Snap() (*Snapshot, error) {
 }
 func (_ testTracker2) Deps() string { return "depends on Go" }
 
-var testTrackerFunc = []func() Tracker{
-	func() Tracker { return testTracker0(3) },
-	func() Tracker { return testTracker1("case1") },
-	func() Tracker { return testTracker2{} },
-}
-var testTrackerName = []string{"case0", "case1", "case2"}
-
 func TestRegisterTracker(t *testing.T) {
-	for i, n := range testTrackerName {
-		err := RegisterTracker(n, testTrackerFunc[i])
-		if err != nil {
-			t.Errorf("case%d", i)
-		}
-		if !(reflect.DeepEqual(trackers[n](), testTrackerFunc[i]())) {
-			t.Errorf("case%d", i)
-		}
+	trackers = make(map[string]func() Tracker)
+	tests := []struct {
+		f          func() Tracker
+		tracker    Tracker
+		name       string
+		duplicated bool
+	}{
+		// first cases
+		{
+			func() Tracker { return testTracker0(3) },
+			testTracker0(3),
+			"case0",
+			false,
+		},
+		{
+			func() Tracker { return testTracker1("case1") },
+			testTracker1("case1"),
+			"case1",
+			false,
+		},
+		{
+			func() Tracker { return testTracker2{} },
+			testTracker2{},
+			"duplicate case",
+			false,
+		},
+		// duplicated cases
+		{
+			func() Tracker { return testTracker2{} },
+			testTracker2{},
+			"duplicate case",
+			true,
+		},
 	}
-	if err := RegisterTracker(testTrackerName[0], testTrackerFunc[0]); err == nil {
-		t.Errorf("case duplicate")
+
+	for i, tt := range tests {
+		err := RegisterTracker(tt.name, tt.f)
+		if (err == nil) != tt.duplicated {
+			t.Errorf("case%d", i)
+		}
+		if !tt.duplicated && !(reflect.DeepEqual(tracker[tt.name](), tt.tracker)) {
+			t.Errorf("case%d", i)
+		}
 	}
 }
 
 func TestNewTracker(t *testing.T) {
 	trackers = make(map[string]func() Tracker)
-	for i, n := range testTrackerName {
-		err := RegisterTracker(n, testTrackerFunc[i])
+	testsNotError := []struct {
+		f       func() Tracker
+		tracker Tracker
+		name    string
+	}{
+		// cases are unique
+		{
+			func() Tracker { return testTracker0(3) },
+			testTracker0(3),
+			"case0",
+		},
+		{
+			func() Tracker { return testTracker1("case1") },
+			testTracker1("case1"),
+			"case1",
+		},
+		{
+			func() Tracker { return testTracker2{} },
+			testTracker2{},
+			"duplicate case",
+		},
+	}
+	testsError := []struct {
+		name string
+	}{
+		"foo",
+	}
+	// define trackers
+	for _, tt := range testsNotError {
+		trackers[tt.name] = tt.f
+	}
+
+	// test
+	for i, tt := range testsNotError {
+		t, err := NewTracker(tt.name)
 		if err != nil {
 			t.Errorf("case%d", i)
 		}
-		tracker, err := NewTracker(n)
-		if !reflect.DeepEqual(tracker, testTrackerFunc[i]()) {
-			t.Errorf("case%d", i)
-		}
-		if err != nil {
+		if !reflect.DeepEqual(NewTracker(tt.name)(), tt.tracker) {
 			t.Errorf("case%d", i)
 		}
 	}
-	if _, err := NewTracker("foo"); err == nil {
-		t.Error("foo exist")
+	for i, tt := range testsError {
+		t, err := NewTracker(tt.name)
+		if err == nil {
+			t.Errorf("case%d", i)
+		}
 	}
 }
 
