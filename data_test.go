@@ -18,125 +18,166 @@ func TestStreamPrint(t *testing.T) {
 		Active:  0,
 		Visible: []int{0},
 	}
-
-	st := Stream{
-		Snapshots: []*Snapshot{
-			&s0,
-			&s0,
-			&s0,
+	tests := []struct {
+		st       Stream
+		expected string
+	}{
+		{
+			Stream{
+				Snapshots: []*Snapshot{
+					&s0,
+					&s0,
+					&s0,
+				},
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\nSun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\nSun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
 		},
 	}
-	expected := "Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\nSun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\nSun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n"
-	actual := st.Print()
-
-	if actual != expected {
-		t.Error(actual)
+	for i, tt := range tests {
+		if tt.st.Print() != tt.expected {
+			t.Errorf("case%d\nexpected:\n`%v`\nactual:\n`%v`", i, tt.expected, tt.st.Print())
+		}
 	}
+
 }
 
 func TestSnapshotPrint(t *testing.T) {
-	s0 := Snapshot{
-		Time: time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
-		Windows: []*Window{
-			&Window{ID: 0, Desktop: 0, Name: "foo - bar"},
+	tests := []struct {
+		ss       Snapshot
+		expected string
+	}{
+		{
+			Snapshot{
+				Time:    time.Time{},
+				Windows: nil,
+				Active:  0,
+				Visible: []int{0},
+			},
+			"Mon Jan 1 00:00:00 +0000 UTC 0001\n",
 		},
-		Active:  0,
-		Visible: []int{0},
+
+		{
+			Snapshot{
+				Time: time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
+				Windows: []*Window{
+					&Window{ID: 0, Desktop: 0, Name: "foo - bar"},
+				},
+				Active:  0,
+				Visible: []int{0},
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
+		},
+		{
+			Snapshot{
+				Time:    time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
+				Windows: nil,
+				Active:  0,
+				Visible: []int{0},
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n",
+		},
+		{
+
+			Snapshot{
+				Time: time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
+				Windows: []*Window{
+					&Window{ID: 0, Desktop: 0, Name: "foo - bar"},
+				},
+				Active:  0,
+				Visible: nil,
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
+		},
+		{
+			Snapshot{
+				Time: time.Date(2017, time.December, 31, 15, 0, 0, 0, time.UTC),
+				Windows: []*Window{
+					&Window{ID: -1, Desktop: -1, Name: "a-1 - b-1 - c-1"},
+					&Window{ID: 0, Desktop: 0, Name: "a0 - b0 - c0"},
+					&Window{ID: 1, Desktop: 0, Name: "a1 - b1 - c1"},
+					&Window{ID: 10, Desktop: 1, Name: "a10 - b10 - c10"},
+				},
+				Active:  0,
+				Visible: []int{0},
+			},
+			"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [c0||a0 - b0]\n\tOther: [c-1||a-1 - b-1], [c1||a1 - b1], [c10||a10 - b10], \n",
+		},
 	}
 
-	casesSnapshot := make([]Snapshot, 5)
-
-	casesSnapshot[1] = s0
-
-	casesSnapshot[2] = s0
-	casesSnapshot[2].Windows = nil
-
-	casesSnapshot[3] = s0
-	casesSnapshot[3].Visible = nil
-
-	casesSnapshot[4] = s0
-	casesSnapshot[4].Windows = []*Window{
-		&Window{ID: -1, Desktop: -1, Name: "a-1 - b-1 - c-1"},
-		&Window{ID: 0, Desktop: 0, Name: "a0 - b0 - c0"},
-		&Window{ID: 1, Desktop: 0, Name: "a1 - b1 - c1"},
-		&Window{ID: 10, Desktop: 1, Name: "a10 - b10 - c10"},
-	}
-
-	expectedString := []string{
-		"Mon Jan 1 00:00:00 +0000 UTC 0001\n",
-		"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
-		"Sun Dec 31 15:00:00 +0000 UTC 2017\n",
-		"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [bar||foo]\n",
-		"Sun Dec 31 15:00:00 +0000 UTC 2017\n\tActive: [c0||a0 - b0]\n\tOther: [c-1||a-1 - b-1], [c1||a1 - b1], [c10||a10 - b10], \n",
-	}
-
-	for i, s := range casesSnapshot {
-		actualString := s.Print()
-		if actualString != expectedString[i] {
-			t.Errorf("case%d, %s", i, actualString)
+	for i, tt := range tests {
+		actual := tt.ss.Print()
+		if actual != tt.expected {
+			t.Errorf("case%d\nexpected:\n%s\nactual:\n%s", i, tt.expected, actual)
 		}
 	}
 }
 
 func TestWriteWindows(t *testing.T) {
-	windows0 := []*Window{
-		&Window{ID: 0, Desktop: 0, Name: "title0 - app0"},
-		&Window{ID: 1, Desktop: 1, Name: "title1 - app1"},
-		&Window{ID: 10, Desktop: 10, Name: "title10 - app10"},
-		&Window{ID: 11, Desktop: 11, Name: "title11 - app11"},
+	tests := []struct {
+		windows  []*Window
+		name     string
+		expected string
+	}{
+		{
+			nil,
+			"",
+			"",
+		},
+		{
+			make([]*Window, 0),
+			"",
+			"",
+		},
+		{
+			[]*Window{&Window{ID: 0, Desktop: 0, Name: "title0 - app0"},
+				&Window{ID: 1, Desktop: 1, Name: "title1 - app1"},
+				&Window{ID: 10, Desktop: 10, Name: "title10 - app10"},
+				&Window{ID: 11, Desktop: 11, Name: "title11 - app11"},
+			},
+			"case",
+			"\tcase: [app0||title0], [app1||title1], [app10||title10], [app11||title11], \n",
+		},
 	}
 
-	casesWindows := make([][]*Window, 3)
-
-	casesWindows[0] = nil
-	casesWindows[1] = make([]*Window, 0)
-	casesWindows[2] = windows0
-
-	casesName := []string{
-		"",
-		"",
-		"case",
-	}
-
-	expectedStrings := []string{
-		"",
-		"",
-		"\tcase: [app0||title0], [app1||title1], [app10||title10], [app11||title11], \n",
-	}
-
-	for i, w := range casesWindows {
+	for i, tt := range tests {
 		var b bytes.Buffer
-		writeWindows(&b, w, casesName[i])
-		var actualString string = ""
-		actualString = string(b.Bytes())
-		if actualString != expectedStrings[i] {
-			t.Errorf("case%d: %s", i, actualString)
+		writeWindows(&b, tt.windows, tt.name)
+		actual := string(b.Bytes())
+		if actual != tt.expected {
+			t.Errorf("case%d:\nexpected:\n%s\nactual:\n%s\n", i, tt.expected, actual)
 		}
 	}
 }
-
-var testWindows = []*Window{
-	{ID: 0, Desktop: 0, Name: ""},
-	{ID: 1, Desktop: 1, Name: "Desktop"},
-	{ID: -1, Desktop: -1, Name: "Google"},
-}
-
-var expectedIsSticky = []bool{false, false, true}
 
 func TestWindowIsSticky(t *testing.T) {
-	for i, w := range testWindows {
-		if w.IsSticky() != expectedIsSticky[i] {
-			t.Errorf("%d", i)
+	tests := []struct {
+		window   *Window
+		isSticky bool
+	}{
+		{&Window{ID: 0, Desktop: 0, Name: ""}, false},
+		{&Window{ID: 1, Desktop: 1, Name: "Desktop"}, false},
+		{&Window{ID: -1, Desktop: -1, Name: "Google"}, true},
+	}
+
+	for i, tt := range tests {
+		if tt.window.IsSticky() != tt.isSticky {
+			t.Errorf("case%d", i)
 		}
 	}
 }
 
-var expectedIsOnDesktop = []bool{true, false, true}
-
 func TestWindowIsOnDesktop(t *testing.T) {
-	for i, w := range testWindows {
-		if w.IsOnDesktop(0) != expectedIsOnDesktop[i] {
-			t.Errorf("%d", i)
+	tests := []struct {
+		window    *Window
+		onDesktop bool
+	}{
+		{&Window{ID: 0, Desktop: 0, Name: ""}, true},
+		{&Window{ID: 1, Desktop: 1, Name: "Desktop"}, false},
+		{&Window{ID: -1, Desktop: -1, Name: "Google"}, true},
+	}
+	for i, tt := range tests {
+		if tt.window.IsOnDesktop(0) != tt.onDesktop {
+			t.Errorf("case:%d", i)
 		}
 	}
 }
@@ -164,45 +205,102 @@ func (_ testTracker2) Snap() (*Snapshot, error) {
 }
 func (_ testTracker2) Deps() string { return "depends on Go" }
 
-var testTrackerFunc = []func() Tracker{
-	func() Tracker { return testTracker0(3) },
-	func() Tracker { return testTracker1("case1") },
-	func() Tracker { return testTracker2{} },
-}
-var testTrackerName = []string{"case0", "case1", "case2"}
-
 func TestRegisterTracker(t *testing.T) {
-	for i, n := range testTrackerName {
-		err := RegisterTracker(n, testTrackerFunc[i])
-		if err != nil {
-			t.Errorf("case%d", i)
-		}
-		if !(reflect.DeepEqual(trackers[n](), testTrackerFunc[i]())) {
-			t.Errorf("case%d", i)
-		}
+	trackers = make(map[string]func() Tracker)
+	tests := []struct {
+		f          func() Tracker
+		tracker    Tracker
+		name       string
+		duplicated bool
+	}{
+		// first cases
+		{
+			func() Tracker { return testTracker0(3) },
+			testTracker0(3),
+			"case0",
+			false,
+		},
+		{
+			func() Tracker { return testTracker1("case1") },
+			testTracker1("case1"),
+			"case1",
+			false,
+		},
+		{
+			func() Tracker { return testTracker2{} },
+			testTracker2{},
+			"duplicate case",
+			false,
+		},
+		// duplicated cases
+		{
+			func() Tracker { return testTracker2{} },
+			testTracker2{},
+			"duplicate case",
+			true,
+		},
 	}
-	if err := RegisterTracker(testTrackerName[0], testTrackerFunc[0]); err == nil {
-		t.Errorf("case duplicate")
+
+	for i, tt := range tests {
+		err := RegisterTracker(tt.name, tt.f)
+		if (err == nil) != tt.duplicated {
+			t.Errorf("case%d", i)
+		}
+		if !tt.duplicated && !(reflect.DeepEqual(tracker[tt.name](), tt.tracker)) {
+			t.Errorf("case%d", i)
+		}
 	}
 }
 
 func TestNewTracker(t *testing.T) {
 	trackers = make(map[string]func() Tracker)
-	for i, n := range testTrackerName {
-		err := RegisterTracker(n, testTrackerFunc[i])
+	testsNotError := []struct {
+		f       func() Tracker
+		tracker Tracker
+		name    string
+	}{
+		// cases are unique
+		{
+			func() Tracker { return testTracker0(3) },
+			testTracker0(3),
+			"case0",
+		},
+		{
+			func() Tracker { return testTracker1("case1") },
+			testTracker1("case1"),
+			"case1",
+		},
+		{
+			func() Tracker { return testTracker2{} },
+			testTracker2{},
+			"duplicate case",
+		},
+	}
+	testsError := []struct {
+		name string
+	}{
+		"foo",
+	}
+	// define trackers
+	for _, tt := range testsNotError {
+		trackers[tt.name] = tt.f
+	}
+
+	// test
+	for i, tt := range testsNotError {
+		t, err := NewTracker(tt.name)
 		if err != nil {
 			t.Errorf("case%d", i)
 		}
-		tracker, err := NewTracker(n)
-		if !reflect.DeepEqual(tracker, testTrackerFunc[i]()) {
-			t.Errorf("case%d", i)
-		}
-		if err != nil {
+		if !reflect.DeepEqual(NewTracker(tt.name)(), tt.tracker) {
 			t.Errorf("case%d", i)
 		}
 	}
-	if _, err := NewTracker("foo"); err == nil {
-		t.Error("foo exist")
+	for i, tt := range testsError {
+		t, err := NewTracker(tt.name)
+		if err == nil {
+			t.Errorf("case%d", i)
+		}
 	}
 }
 
@@ -243,8 +341,12 @@ var testSt = Stream{
 			Visible: nil,
 		},
 		&Snapshot{
-			Time:    time.Now(),
-			Windows: testWindows,
+			Time: time.Now(),
+			Windows: []*Window{
+				&Window{ID: 0, Desktop: 0, Name: ""},
+				&Window{ID: 1, Desktop: 1, Name: "Desktop"},
+				&Window{ID: -1, Desktop: -1, Name: "Google"},
+			},
 			Active:  -1,
 			Visible: []int{-1, 0, 1},
 		},

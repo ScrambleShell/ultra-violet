@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 )
@@ -25,7 +24,6 @@ func RegisterTracker(name string, t func() Tracker) error {
 // NewTracker returns a new Tracker instance whose type is `name`.
 func NewTracker(name string) (Tracker, error) {
 	if _, exists := trackers[name]; !exists {
-		log.Println("error")
 		return nil, errors.New("no Tracker constructor has been registered with name " + name)
 	}
 	return trackers[name](), nil
