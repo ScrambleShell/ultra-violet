@@ -243,10 +243,10 @@ func TestRegisterTracker(t *testing.T) {
 
 	for i, tt := range tests {
 		err := RegisterTracker(tt.name, tt.f)
-		if (err == nil) != tt.duplicated {
+		if (err == nil) == tt.duplicated {
 			t.Errorf("case%d", i)
 		}
-		if !tt.duplicated && !(reflect.DeepEqual(tracker[tt.name](), tt.tracker)) {
+		if !tt.duplicated && !(reflect.DeepEqual(trackers[tt.name](), tt.tracker)) {
 			t.Errorf("case%d", i)
 		}
 	}
@@ -279,7 +279,7 @@ func TestNewTracker(t *testing.T) {
 	testsError := []struct {
 		name string
 	}{
-		"foo",
+		{"foo"},
 	}
 	// define trackers
 	for _, tt := range testsNotError {
@@ -288,16 +288,16 @@ func TestNewTracker(t *testing.T) {
 
 	// test
 	for i, tt := range testsNotError {
-		t, err := NewTracker(tt.name)
+		tracker, err := NewTracker(tt.name)
 		if err != nil {
 			t.Errorf("case%d", i)
 		}
-		if !reflect.DeepEqual(NewTracker(tt.name)(), tt.tracker) {
+		if !reflect.DeepEqual(tracker, tt.tracker) {
 			t.Errorf("case%d", i)
 		}
 	}
 	for i, tt := range testsError {
-		t, err := NewTracker(tt.name)
+		_, err := NewTracker(tt.name)
 		if err == nil {
 			t.Errorf("case%d", i)
 		}
